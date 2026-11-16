@@ -2,46 +2,48 @@
 
 #include <cctype>
 #include <sstream>
-#include <string_view>
 
-std::string TextProcessor::replace_words(const std::string& text,
-                                         const std::string& from,
-                                         const std::string& to) const {
+std::string TextProcessor::replace_words(std::string_view text,
+                                         std::string_view from,
+                                         const std::string& target) {
+    ++operations_count_;
     if (from.empty()) {
-        return text;
+        return std::string{text};
     }
     std::string result;
     result.reserve(text.size());
-    std::string::size_type pos = 0;
+    std::string::size_type position = 0;
     while (true) {
-        const auto found = text.find(from, pos);
-        if (found == std::string::npos) {
-            result.append(text, pos, std::string::npos);
+        const auto found = text.find(from, position);
+        if (found == std::string_view::npos) {
+            result.append(text.substr(position));
             break;
         }
-        result.append(text, pos, found - pos);
-        result.append(to);
-        pos = found + from.size();
+        result.append(text.substr(position, found - position));
+        result.append(target);
+        position = found + from.size();
     }
     return result;
 }
 
-std::string TextProcessor::find_phrase(const std::string& text,
-                                       const std::string& phrase) const {
+bool TextProcessor::find_phrase(std::string_view text,
+                                std::string_view phrase) {
+    ++operations_count_;
     if (phrase.empty()) {
-        return "not found";
+        return false;
     }
-    return text.find(phrase) != std::string::npos ? "found" : "not found";
+    return text.find(phrase) != std::string_view::npos;
 }
 
-std::string TextProcessor::capitalize_words(const std::string& text) const {
-    std::string result = text;
+std::string TextProcessor::capitalize_words(std::string_view text) {
+    ++operations_count_;
+    std::string result{text};
     bool at_word_start = true;
-    for (char& ch : result) {
-        const auto uch = static_cast<unsigned char>(ch);
-        if (std::isalpha(uch) != 0) {
+    for (char& symbol : result) {
+        const auto byte_value = static_cast<unsigned char>(symbol);
+        if (std::isalpha(byte_value) != 0) {
             if (at_word_start) {
-                ch = static_cast<char>(std::toupper(uch));
+                symbol = static_cast<char>(std::toupper(byte_value));
             }
             at_word_start = false;
         } else {
@@ -51,48 +53,55 @@ std::string TextProcessor::capitalize_words(const std::string& text) const {
     return result;
 }
 
-std::string TextProcessor::capitalize_sentences(const std::string& text) const {
-    std::string result = text;
+std::string TextProcessor::capitalize_sentences(std::string_view text) {
+    ++operations_count_;
+    std::string result{text};
     bool at_sentence_start = true;
-    for (char& ch : result) {
-        const auto uch = static_cast<unsigned char>(ch);
-        if (at_sentence_start && std::isalpha(uch) != 0) {
-            ch = static_cast<char>(std::toupper(uch));
+    for (char& symbol : result) {
+        const auto byte_value = static_cast<unsigned char>(symbol);
+        if (at_sentence_start && std::isalpha(byte_value) != 0) {
+            symbol = static_cast<char>(std::toupper(byte_value));
             at_sentence_start = false;
-        } else if (ch == '.' || ch == '!' || ch == '?') {
+        } else if (symbol == '.' || symbol == '!' || symbol == '?') {
             at_sentence_start = true;
         }
     }
     return result;
 }
 
-std::string TextProcessor::number_sentences(const std::string& text) const {
+std::string TextProcessor::number_sentences(std::string_view text) {
+    ++operations_count_;
     const auto sentences = split_sentences(text);
     std::ostringstream out;
     std::size_t index = 1;
     for (const auto& sentence : sentences) {
-        if (sentence.empty()) {
+        const auto first = sentence.find_first_not_of(" \t\n");
+        if (first == std::string::npos) {
             continue;
         }
-        out << index << ". " << sentence << '\n';
+        out << index << ". " << sentence.substr(first) << '\n';
         ++index;
     }
     return out.str();
 }
 
-std::vector<std::string> TextProcessor::split_sentences(const std::string& text) {
+std::size_t TextProcessor::operations_count() const noexcept {
+    return operations_count_;
+}
+
+std::vector<std::string> TextProcessor::split_sentences(std::string_view text) {
     std::vector<std::string> result;
     std::string current;
-    for (const char ch : text) {
-        if (ch == '\n') {
+    for (const char symbol : text) {
+        if (symbol == '\n') {
             if (!current.empty()) {
                 result.push_back(current);
                 current.clear();
             }
             continue;
         }
-        current.push_back(ch);
-        if (ch == '.' || ch == '!' || ch == '?') {
+        current.push_back(symbol);
+        if (symbol == '.' || symbol == '!' || symbol == '?') {
             result.push_back(current);
             current.clear();
         }
